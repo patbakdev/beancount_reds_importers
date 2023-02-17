@@ -40,7 +40,8 @@ class Importer(importer.ImporterProtocol):
         #     'capgainsd_st'     : 'Account to book short term capital gains distributions to'
         #     'fees'             : 'Account to book fees to',
         #     'rounding_error'   : 'Account to book rounding errors to',
-        #     'fund_info '       : 'dictionary of fund info (by_id, money_market)',
+        #     'rounding_digits'  : 'The number of decimals to use when rounding amounts',
+        #     'fund_info'        : 'dictionary of fund info (by_id, money_market)',
         # }
         #
         # Example:
@@ -275,6 +276,8 @@ class Importer(importer.ImporterProtocol):
                 units = ot.amount
             else:
                 units = ot.total
+            if 'rounding_digits' in config:
+                units = round(units, int(config['rounding_digits']))
         except AttributeError:
             print("Could not determine field for transaction amount")
             # import pdb; pdb.set_trace()
