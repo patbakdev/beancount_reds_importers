@@ -40,7 +40,8 @@ class Importer(importer.ImporterProtocol):
         #     'capgainsd_st'     : 'Account to book short term capital gains distributions to'
         #     'fees'             : 'Account to book fees to',
         #     'rounding_error'   : 'Account to book rounding errors to',
-        #     'fund_info '       : 'dictionary of fund info (by_id, money_market)',
+        #     'rounding_digits'  : 'The number of decimals to use when rounding amounts',
+        #     'fund_info'        : 'dictionary of fund info (by_id, money_market)',
         # }
         #
         # Example:
@@ -205,6 +206,9 @@ class Importer(importer.ImporterProtocol):
         units = ot.units
         total = ot.total
 
+        if 'rounding_digits' in self.config:
+            units = round(units, int(self.config['rounding_digits']))
+
         # special cases
         if 'sell' in ot.type:
             units = -1 * abs(ot.units)
@@ -275,6 +279,8 @@ class Importer(importer.ImporterProtocol):
                 units = ot.amount
             else:
                 units = ot.total
+            if 'rounding_digits' in config:
+                units = round(units, int(config['rounding_digits']))
         except AttributeError:
             print("Could not determine field for transaction amount")
             # import pdb; pdb.set_trace()
@@ -356,28 +362,41 @@ class Importer(importer.ImporterProtocol):
             metadata = data.new_metadata(file.name, next(counter))
             metadata.update(self.build_metadata(file, metatype='balance', data={'pos': pos}))
 
+            units = pos.units
+            if 'rounding_digits' in self.config:
+                units = round(units, int(self.config['rounding_digits']))
+
             # if there are no transactions, use the date in the source file for the balance. This gives us the
             # bonus of an updated, recent balance assertion
             bal_date = date if date else pos.date.date()
             balance_entry = data.Balance(metadata, bal_date, self.main_acct(ticker),
-                                         amount.Amount(pos.units, ticker),
+                                         amount.Amount(units, ticker),
                                          None, None)
             new_entries.append(balance_entry)
             if ticker in self.money_market_funds:
-                settlement_fund_balance = pos.units
+                settlement_fund_balance = units
 
             # extract price info if available
             if hasattr(pos, 'unit_price') and hasattr(pos, 'date'):
                 metadata = data.new_metadata(file.name, next(counter))
                 metadata.update(self.build_metadata(file, metatype='price', data={'pos': pos}))
+
+                unit_price = pos.unit_price
+                if 'rounding_digits' in self.config:
+                    unit_price = round(unit_price, int(self.config['rounding_digits']))
+
                 price_entry = data.Price(metadata, pos.date.date(), ticker,
-                                         amount.Amount(pos.unit_price, self.currency))
+                                         amount.Amount(unit_price, self.currency))
                 new_entries.append(price_entry)
 
         # ----------------- available cash
         available_cash = self.get_available_cash()
         if available_cash is not None:
             balance = available_cash - settlement_fund_balance
+
+            if 'rounding_digits' in self.config:
+                balance = round(balance, int(self.config['rounding_digits']))
+
             metadata = data.new_metadata(file.name, next(counter))
             metadata.update(self.build_metadata(file, metatype='balance_cash'))
             try:
